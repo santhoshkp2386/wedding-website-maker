@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forever3D — Wedding Website Maker</title>
+<meta name="description" content="Create a 3D wedding website with your photos, pick a template, customise colours and effects, and share it with guests as a link.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💍</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/builder.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">💍</span><div><strong>Forever3D</strong><small>Wedding website maker</small></div></div>
+  <div class="save" id="saveState">Loading…</div>
+  <div class="top-actions">
+    <button class="btn ghost" id="btnIntro" title="Replay the envelope intro in the preview">▶ Intro</button>
+    <button class="btn ghost hide-sm" id="btnOpen" title="Open full-screen preview in a new tab">Full preview ↗</button>
+    <button class="btn primary" id="btnPublish">🚀 Publish</button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="rail" id="rail" aria-label="Editor sections"></nav>
+  <aside class="panel" id="panel"></aside>
+  <section class="stage">
+    <div class="stage-bar">
+      <div class="seg" id="device">
+        <button data-device="desktop" class="on">🖥 Desktop</button>
+        <button data-device="tablet">Tablet</button>
+        <button data-device="mobile">📱 Mobile</button>
+      </div>
+      <span class="stage-hint">Live preview — move your mouse over it to see the 3D parallax</span>
+    </div>
+    <div class="frame-wrap desktop" id="frameWrap">
+      <iframe id="preview" src="site.html?preview=1" title="Live preview"></iframe>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="js/builder.js"></script>
+</body>
+</html>

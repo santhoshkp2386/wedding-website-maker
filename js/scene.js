@@ -198,7 +198,8 @@ class Particles {
       x += Math.sin(t * 0.6 + sd * 40) * d.sway * dt;
       if (d.wander) { x += Math.sin(t * 0.7 + sd * 20) * 0.35 * dt; y += Math.cos(t * 0.55 + sd * 13) * 0.35 * dt; }
       const yb = this.yBound(z);
-      if (y < -yb) { y = yb; x = rand(-yb * 1.9, yb * 1.9); }
+      if (d.noWrap) { /* one-off burst: let particles leave the screen */ }
+      else if (y < -yb) { y = yb; x = rand(-yb * 1.9, yb * 1.9); }
       else if (y > yb) { y = -yb; x = rand(-yb * 1.9, yb * 1.9); }
       p[k] = x; p[k + 1] = y;
       r[i] += this.spin[i] * dt;
@@ -318,6 +319,22 @@ export class WeddingScene {
       this.systems.push(s);
       this.fx.add(s.points);
     }
+  }
+
+  // one-off shower of hearts (e.g. after an RSVP)
+  burst() {
+    if (!this.cfg) return;
+    const def = { n: 70, size: [0.25, 0.5], tex: 'heart', color: 'multi', vy: [1.8, 3.4], sway: 0.9, spin: 1.2, noWrap: true };
+    const s = new Particles(def, this.cfg.colors, 1, this.tone, this.pointScale);
+    const pos = s.points.geometry.attributes.position.array;
+    for (let i = 0; i < s.n; i++) pos[i * 3 + 1] = s.yBound(pos[i * 3 + 2]) * -1 - Math.random() * 3; // start below the screen
+    this.systems.push(s);
+    this.fx.add(s.points);
+    setTimeout(() => {
+      this.systems = this.systems.filter(x => x !== s);
+      this.fx.remove(s.points);
+      s.dispose();
+    }, 4500);
   }
 
   // ----- textures -----

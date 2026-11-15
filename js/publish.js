@@ -1,5 +1,5 @@
 // Builds the static guest website and publishes it to GitHub Pages (or a ZIP).
-const ASSETS = ['css/site.css', 'js/site.js', 'js/scene.js', 'js/fonts.js'];
+const ASSETS = ['css/site.css', 'js/site.js', 'js/scene.js', 'js/fonts.js', 'js/backend.js'];
 
 export const slugify = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'our-wedding';
@@ -47,6 +47,8 @@ function injectMeta(html, cfg, siteUrl) {
 export async function buildSiteFiles(config, { siteUrl = '' } = {}) {
   const cfg = structuredClone(config);
   delete cfg.publish;
+  delete cfg.admin; // the couple's secret dashboard key must never be published
+  (cfg.invites || []).forEach(v => delete v.phone); // keep guests' phone numbers private
   const files = [];
   cfg.photos = (cfg.photos || []).map((p, i) => {
     const d = dataUrl(p.src);

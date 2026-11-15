@@ -12,6 +12,8 @@ No server, no build step: it's plain HTML/JS with [Three.js](https://threejs.org
 - **Style**: your own colours and fonts, background style, mouse/phone-tilt parallax
 - **Elements**: countdown, our story timeline, events (with directions and add-to-calendar), 3D photo gallery, venue map, RSVP (WhatsApp, email or form), dress code, quote, YouTube video, wedding party, travel, gifts, FAQ, thank-you
 - **Opening envelope**: guests tap a 3D envelope to open the invitation, and background music starts
+- **Personal invite links** (`?i=sharma-family`): greet each guest by name on the envelope and hero, show only their events, pre-fill the RSVP and reserve seats. Links can be sent straight to WhatsApp.
+- **Online RSVPs and a guestbook**, saved in Supabase: a live dashboard with headcounts per event, a list of who hasn't replied, CSV export and wish moderation, plus a private dashboard link (`dashboard.html`) to share with family
 - **Publish**: one click creates a GitHub repository and turns on GitHub Pages, giving you a link to share. You can also download a ZIP.
 - **Autosave**: projects are saved in the browser (IndexedDB), and you can export or import a backup
 
@@ -33,6 +35,15 @@ python3 -m http.server 8000
 3. Your site goes live at `https://<username>.github.io/<site-name>/`. Share it on WhatsApp.
 
 Publish again any time after editing. The link stays the same.
+
+## Backend setup (RSVPs and guestbook)
+
+Run [`supabase/schema.sql`](supabase/schema.sql) once in your Supabase project (**SQL Editor → New query → paste → Run**).
+Then put your project URL and publishable key in [`js/backend.js`](js/backend.js).
+
+How access works:
+- Guests can't read or write the tables directly. They can only call the functions that submit an RSVP or post and read wishes.
+- Each wedding gets a secret admin key. Only a hash of it is stored in the database, and it's never included in the published site.
 
 ## Files
 

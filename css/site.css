@@ -189,6 +189,53 @@ figure figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 2
 .rsvp .btn { justify-self: center; margin-top: 6px; }
 .rsvp > .btn:only-child, .rsvp > a.btn { justify-self: center; }
 
+/* personal invite */
+.greet { font-family: var(--fd); font-size: clamp(1.3rem, 3vw, 1.8rem); color: var(--primary); margin: 0 0 .3em; }
+.letter .dear { display: block; font-family: var(--fd); font-style: normal; font-size: .95rem; color: #8a5a3a; margin-bottom: .3em; }
+.invite-for { margin: 0; color: var(--muted); }
+.invite-for strong { color: var(--primary); }
+.prev-note { margin: 0; font-size: .85em; color: var(--muted); font-style: italic; }
+
+/* online rsvp extras */
+.rsvp:has(input[name=attend][value=no]:checked) .if-yes { display: none; }
+.if-yes { display: grid; gap: 16px; }
+.ev-pick { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ev-pick legend { font-size: .82em; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
+.ev-pick label { display: block; }
+.ev-pick input { position: absolute; opacity: 0; }
+.ev-pick span { display: inline-block; padding: .5em 1em; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: .95rem; text-transform: none; letter-spacing: 0; color: var(--text); transition: .2s; }
+.ev-pick input:checked + span { background: color-mix(in srgb, var(--primary) 22%, transparent); border-color: var(--primary); }
+.ev-pick input:checked + span::before { content: '✓ '; color: var(--primary); }
+.ev-pick input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rsvp-done { text-align: center; padding: 10px 0; animation: rise .8s cubic-bezier(.2, .7, .2, 1); }
+.rsvp-done .big { font-size: 3rem; animation: bob 2s ease-in-out infinite; }
+.rsvp-done h3 { font-family: var(--fd); font-weight: 400; font-size: 1.8em; margin: .2em 0; }
+.rsvp-done p { color: var(--muted); }
+
+/* guestbook */
+.wish-form { max-width: 640px; margin: 0 auto 40px; display: grid; gap: 12px; }
+.wish-form p { margin: 0 0 4px; }
+.wish-form input, .wish-form textarea {
+  font: inherit; font-size: 1rem; color: var(--text); width: 100%;
+  background: color-mix(in srgb, var(--bg) 35%, transparent); border: 1px solid var(--line); border-radius: 12px; padding: .75em 1em;
+}
+.wish-form input:focus, .wish-form textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.wish-form .btn { justify-self: center; }
+.wish-wall { columns: 3 250px; column-gap: 18px; perspective: 1200px; }
+.wish-wall .empty-note { column-span: all; }
+.wish {
+  break-inside: avoid; margin: 0 0 18px; padding: 22px 22px 16px; border-radius: 16px; position: relative;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  transform: rotate(var(--rot, 0deg)); animation: drift 7s ease-in-out infinite; animation-delay: var(--delay, 0s);
+}
+.wish::before { content: '❝'; position: absolute; top: 4px; left: 12px; font-size: 1.8rem; color: var(--primary); opacity: .5; line-height: 1; }
+.wish blockquote { margin: 0; font-size: 1.02em; }
+.wish figcaption { position: static; padding: 0; background: none; text-align: left; margin-top: .6em; color: var(--primary); font-size: .85em; letter-spacing: .06em; }
+.wish.fresh { animation: pop .8s cubic-bezier(.2, .7, .2, 1), drift 7s ease-in-out .8s infinite; }
+@keyframes drift { 50% { transform: rotate(calc(var(--rot, 0deg) * -1)) translateY(-6px) rotateX(4deg); } }
+@keyframes pop { from { opacity: 0; transform: scale(.6) rotateX(40deg); } }
+
 /* misc sections */
 .swatches { display: flex; gap: 14px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
 .swatches i { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); box-shadow: var(--shadow); }

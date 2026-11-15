@@ -105,13 +105,13 @@ export const SECTION_TYPES = {
     label: 'Events', icon: '📅', desc: 'Ceremony, reception & more',
     defaults: {
       title: 'Wedding Events', items: [
-        { name: 'Sangeet Night', date: '2027-02-13', time: '19:00', venue: 'The Palace Lawns', address: 'City Palace, Udaipur', note: 'Music, dance & celebration' },
-        { name: 'Wedding Ceremony', date: '2027-02-14', time: '18:30', venue: 'Lake Pavilion', address: 'Lake Pichola, Udaipur', note: '' },
-        { name: 'Reception', date: '2027-02-15', time: '20:00', venue: 'Grand Ballroom', address: 'Udaipur, Rajasthan', note: 'Dinner & dancing' },
+        { id: 'ev1', name: 'Sangeet Night', date: '2027-02-13', time: '19:00', venue: 'The Palace Lawns', address: 'City Palace, Udaipur', note: 'Music, dance & celebration' },
+        { id: 'ev2', name: 'Wedding Ceremony', date: '2027-02-14', time: '18:30', venue: 'Lake Pavilion', address: 'Lake Pichola, Udaipur', note: '' },
+        { id: 'ev3', name: 'Reception', date: '2027-02-15', time: '20:00', venue: 'Grand Ballroom', address: 'Udaipur, Rajasthan', note: 'Dinner & dancing' },
       ],
     },
     fields: [T],
-    list: { k: 'items', label: 'Events', one: 'event', blank: { name: '', date: '', time: '', venue: '', address: '', note: '' },
+    list: { k: 'items', label: 'Events', one: 'event', blank: { name: '', date: '', time: '', venue: '', address: '', note: '' }, withId: true,
       item: [
         { k: 'name', label: 'Event name' }, { k: 'date', label: 'Date', type: 'date' }, { k: 'time', label: 'Time', type: 'time' },
         { k: 'venue', label: 'Venue' }, { k: 'address', label: 'Address (used for maps)' }, { k: 'note', label: 'Note', type: 'textarea', rows: 2 },
@@ -130,10 +130,11 @@ export const SECTION_TYPES = {
   },
   rsvp: {
     label: 'RSVP', icon: '💌', desc: 'Replies via WhatsApp, email or form',
-    defaults: { title: 'Will you join us?', text: 'We would love to celebrate with you. Kindly reply by', deadline: '2027-01-15', method: 'whatsapp', target: '' },
+    defaults: { title: 'Will you join us?', text: 'We would love to celebrate with you. Kindly reply by', deadline: '2027-01-15', method: 'online', target: '' },
     fields: [T, { k: 'text', label: 'Message', type: 'textarea', rows: 2 }, { k: 'deadline', label: 'Reply by', type: 'date' },
-      { k: 'method', label: 'Send replies to', type: 'select', options: [['whatsapp', 'WhatsApp'], ['email', 'Email'], ['link', 'External form (Google Forms etc.)']] },
-      { k: 'target', label: 'Phone with country code / email / form URL', ph: '+91 98765 43210' }],
+      { k: 'method', label: 'Send replies to', type: 'select', options: [['online', 'Online — saved to your Guests dashboard'], ['whatsapp', 'WhatsApp'], ['email', 'Email'], ['link', 'External form (Google Forms etc.)']] },
+      { k: 'target', label: 'Phone with country code / email / form URL (not needed for Online)', ph: '+91 98765 43210' }],
+    note: 'Online replies appear in the Guests tab. Guests with a personal invite link see only their events and their name pre-filled.',
   },
   dresscode: {
     label: 'Dress Code', icon: '👗', desc: 'Attire & colour palette',
@@ -172,6 +173,12 @@ export const SECTION_TYPES = {
     fields: [T],
     list: { k: 'items', label: 'Questions', one: 'question', blank: { q: '', a: '' }, item: [{ k: 'q', label: 'Question' }, { k: 'a', label: 'Answer', type: 'textarea', rows: 2 }] },
   },
+  wishes: {
+    label: 'Guestbook', icon: '💬', desc: 'Guests leave wishes on a 3D wall',
+    defaults: { title: 'Wishes & Blessings', text: 'Leave a note for the couple — it will appear on the wall below.' },
+    fields: [T, { k: 'text', label: 'Intro line', type: 'textarea', rows: 2 }],
+    note: 'Wishes are saved online. Hide any unwanted ones from the Guests tab.',
+  },
   thanks: {
     label: 'Thank You', icon: '💖', desc: 'A closing note',
     defaults: { title: 'With Love', text: "Thank you for being part of our story. We can't wait to celebrate with you!" },
@@ -206,7 +213,10 @@ export function defaultConfig() {
     intro: { enabled: true, text: 'You are cordially invited' },
     music: { src: '', name: '' },
     photos: [],
-    sections: ['countdown', 'story', 'events', 'gallery', 'map', 'rsvp', 'thanks'].map(newSection),
+    sections: ['countdown', 'story', 'events', 'gallery', 'map', 'rsvp', 'wishes', 'thanks'].map(newSection),
     publish: { repo: '', url: '' },
+    weddingId: '',        // public id for the online RSVP / guestbook backend
+    admin: { key: '' },   // secret — never published
+    invites: [],          // personal invite links: { id, name, slug, maxGuests, events: [eventId] }
   };
 }

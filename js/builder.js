@@ -1,4 +1,6 @@
-import { TEMPLATES, SECTION_TYPES, EFFECTS, HERO_STYLES, BACKGROUNDS, defaultConfig, newSection, templateStyle } from './templates.js';
+import { TEMPLATES, SECTION_TYPES, EFFECTS, HERO_STYLES, BACKGROUNDS, defaultConfig, newSection, templateStyle, uid } from './templates.js';
+import { createWedding } from './backend.js';
+import { mountDashboard } from './dashboard.js';
 import { FONTS, fontsHref } from './fonts.js';
 import * as store from './store.js';
 import { buildSiteFiles, publishToGitHub, downloadZip, slugify } from './publish.js';
@@ -13,6 +15,7 @@ const TABS = [
   ['style', '🎨', 'Style'],
   ['effects', '🌸', 'Effects'],
   ['elements', '🧩', 'Elements'],
+  ['guests', '👥', 'Guests'],
   ['publish', '🚀', 'Publish'],
 ];
 
@@ -22,6 +25,7 @@ let state;
 let tab = 'details';
 let openIdx = -1;
 let fid = 0;
+let previewInvite = null; // slug the live preview is personalised for
 
 // ---------- helpers ----------
 const getPath = (o, p) => p.split('.').reduce((a, k) => a?.[k], o);
@@ -45,13 +49,16 @@ function migrate(s) {
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   for (const k of ['couple', 'colors', 'fonts', 'scene', 'intro', 'music', 'publish']) s[k] = { ...d[k], ...s[k] };
   s.effects = { ...Object.fromEntries(EFFECTS.map(e => [e.id, false])), ...s.effects };
+  s.invites ||= [];
+  s.admin ||= { key: '' };
+  for (const sec of s.sections) if (sec.type === 'events') for (const it of sec.data.items || []) it.id ||= uid();
   return s;
 }
 
 // ---------- preview + save ----------
 let sendT, saveT;
 function sendPreview() {
-  frame.contentWindow?.postMessage({ type: 'config', config: state }, location.origin);
+  frame.contentWindow?.postMessage({ type: 'config', config: state, invite: previewInvite }, location.origin);
 }
 function changed() {
   clearTimeout(sendT);
@@ -206,6 +213,54 @@ const views = {
     </div>
   `,
 
+  guests: () => {
+    const evs = eventList();
+    const base = siteBase();
+    const prev = previewInvite && state.invites.find(v => v.slug === previewInvite);
+    return `
+    <h2>Guests & RSVPs</h2>
+    <p class="hint">Send each family a personal link. It greets them by name, shows only the events they're invited to, and their replies land here.</p>
+    ${prev ? `<div class="banner">👀 Previewing as <strong>${esc(prev.name)}</strong> <button class="btn small" data-action="previewAs" data-slug="">Stop</button></div>` : ''}
+    ${state.weddingId ? '' : `<div class="box activate">
+      <h3>Turn on online RSVPs & guestbook</h3>
+      <p class="hint">Creates a private record for this wedding so replies and wishes are saved. Free.</p>
+      <button class="btn primary block" data-action="activate">✨ Activate</button>
+    </div>`}
+    <h3>Personal invite links <span class="count">${state.invites.length}</span></h3>
+    ${state.publish?.url ? '' : '<p class="hint warn">Publish the site first to get working links. You can add invites now.</p>'}
+    <div class="field"><label for="bulkNames">Add invites — one family or guest per line</label>
+      <textarea id="bulkNames" rows="3" placeholder="Sharma Family&#10;Rohan & Priya&#10;Mehta Ji"></textarea></div>
+    <button class="btn small block" data-action="addInvites">+ Add invites</button>
+    <div class="inv-list">${state.invites.map((v, i) => `
+      <div class="inv">
+        <div class="inv-top">
+          <input class="inv-name" aria-label="Invite name" value="${esc(v.name)}" data-bind="invites.${i}.name">
+          <button title="Preview the site as this guest" class="icon-btn" data-action="previewAs" data-slug="${esc(v.slug)}">👀</button>
+          <button title="Delete invite" class="icon-btn" data-action="removeInvite" data-i="${i}">✕</button>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Seats</label><input type="number" min="1" max="50" value="${esc(v.maxGuests || '')}" placeholder="any" data-bind="invites.${i}.maxGuests" data-num></div>
+          <div class="field"><label>WhatsApp no. (optional)</label><input type="tel" value="${esc(v.phone || '')}" placeholder="+91…" data-bind="invites.${i}.phone"></div>
+        </div>
+        ${evs.length > 1 ? `<div class="chips" title="Leave all unticked to invite to every event">${evs.map(e => `<label><input type="checkbox" data-inv-ev="${i}" value="${esc(e.id)}" ${v.events?.includes(e.id) ? 'checked' : ''}><span>${esc(e.name || 'Event')}</span></label>`).join('')}</div>
+          <small class="hint tight">${v.events?.length ? 'Only the ticked events are shown.' : 'Invited to all events.'}</small>` : ''}
+        <div class="inv-link"><code>${esc(base)}?i=${esc(v.slug)}</code></div>
+        <div class="row">
+          <button class="btn small" data-action="copyInvite" data-i="${i}">Copy link</button>
+          <a class="btn small" target="_blank" rel="noopener" href="${esc(waLink(v))}">Send on WhatsApp</a>
+        </div>
+      </div>`).join('')}
+    </div>
+    <h3>Replies & wishes</h3>
+    ${state.weddingId ? `<div id="dash" class="dash"></div>
+      <div class="box">
+        <h3>Share the dashboard with family</h3>
+        <p class="hint">A private page with live replies — works on any phone. Anyone with this link can see replies, so share it only with family.</p>
+        <button class="btn small" data-action="copyDashboard">Copy private dashboard link</button>
+      </div>` : '<p class="hint">Activate online RSVPs above to see replies here.</p>'}
+    `;
+  },
+
   publish: () => {
     const p = state.publish || {};
     const repo = p.repo || slugify(`${state.couple.partner1}-weds-${state.couple.partner2}`);
@@ -283,7 +338,40 @@ function renderPanel() {
   fid = 0;
   panel.innerHTML = `<div class="panel-inner">${views[tab]()}</div>`;
   panel.scrollTop = y;
+  const dash = $('#dash');
+  if (dash && state.weddingId) {
+    mountDashboard(dash, {
+      weddingId: state.weddingId, adminKey: state.admin.key, invites: state.invites,
+      events: eventList().map(e => e.name).filter(Boolean),
+      title: slugify(`${state.couple.partner1}-${state.couple.partner2}`),
+    });
+  }
 }
+
+// ---------- guests helpers ----------
+const eventList = () => state.sections.find(s => s.type === 'events')?.data.items || [];
+const siteBase = () => (state.publish?.url || 'https://<your-site>/').replace(/\/?$/, '/');
+const inviteUrl = v => `${siteBase()}?i=${encodeURIComponent(v.slug)}`;
+function waLink(v) {
+  const c = state.couple;
+  const text = `Dear ${v.name}, you're invited to ${c.partner1} & ${c.partner2}'s wedding! 💍\nOpen your personal invitation: ${inviteUrl(v)}`;
+  const phone = String(v.phone || '').replace(/\D/g, '');
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+}
+async function ensureWedding({ quiet = false } = {}) {
+  if (state.weddingId) return true;
+  try {
+    const r = await createWedding(`${state.couple.partner1} & ${state.couple.partner2}`);
+    state.weddingId = r.id;
+    state.admin = { key: r.admin_key };
+    changed();
+    return true;
+  } catch (e) {
+    if (!quiet) toast('Could not activate: ' + e.message, 5000);
+    return false;
+  }
+}
+const needsBackend = () => state.sections.some(s => s.enabled !== false && (s.type === 'wishes' || (s.type === 'rsvp' && (!s.data.method || s.data.method === 'online'))));
 
 function go(t) {
   tab = t;
@@ -313,6 +401,15 @@ panel.addEventListener('input', e => {
 
 panel.addEventListener('change', async e => {
   const el = e.target;
+  if (el.dataset.invEv !== undefined) {
+    const v = state.invites[+el.dataset.invEv];
+    const set = new Set(v.events || []);
+    el.checked ? set.add(el.value) : set.delete(el.value);
+    v.events = [...set];
+    renderPanel(); changed();
+    return;
+  }
+  if (/^invites\.\d+\.name$/.test(el.dataset.bind || '')) renderPanel();
   if (el.dataset.rerender !== undefined) renderPanel();
   if (el.matches('select[data-bind^="sections."]')) renderPanel();
   const up = el.dataset.upload;
@@ -385,7 +482,7 @@ const actions = {
   },
   addItem({ i }) {
     const s = state.sections[i], L = SECTION_TYPES[s.type].list;
-    (s.data[L.k] ||= []).push(structuredClone(L.blank));
+    (s.data[L.k] ||= []).push({ ...structuredClone(L.blank), ...(L.withId ? { id: uid() } : {}) });
     renderPanel(); changed();
   },
   removeItem({ i, j }) {
@@ -397,6 +494,42 @@ const actions = {
     const s = state.sections[i];
     swap(s.data[SECTION_TYPES[s.type].list.k], j, j + d);
     renderPanel(); changed();
+  },
+  async activate() {
+    if (await ensureWedding()) { renderPanel(); toast('Online RSVPs & guestbook are on ✓'); }
+  },
+  addInvites() {
+    const names = $('#bulkNames').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!names.length) return toast('Type at least one name');
+    const used = new Set(state.invites.map(v => v.slug));
+    for (const name of names) {
+      let slug = slugify(name), k = 2;
+      while (used.has(slug)) slug = `${slugify(name)}-${k++}`;
+      used.add(slug);
+      state.invites.push({ id: uid(), name, slug, maxGuests: '', phone: '', events: [] });
+    }
+    renderPanel(); changed();
+    toast(`${names.length} invite(s) added`);
+  },
+  removeInvite({ i }) {
+    if (!confirm(`Delete the invite for “${state.invites[i].name}”? Its link will stop being personalised.`)) return;
+    if (previewInvite === state.invites[i].slug) previewInvite = null;
+    state.invites.splice(i, 1);
+    renderPanel(); changed();
+  },
+  async copyInvite({ i }) {
+    const url = inviteUrl(state.invites[i]);
+    try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { prompt('Copy this link:', url); }
+  },
+  previewAs({ slug }) {
+    previewInvite = slug || null;
+    sendPreview(); renderPanel();
+    if (slug) frame.contentWindow?.postMessage({ type: 'replayIntro' }, location.origin);
+  },
+  async copyDashboard() {
+    const builderBase = location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '');
+    const url = `${builderBase}dashboard.html#w=${state.weddingId}&k=${state.admin.key}&t=${encodeURIComponent(`${state.couple.partner1} & ${state.couple.partner2}`)}`;
+    try { await navigator.clipboard.writeText(url); toast('Private dashboard link copied'); } catch { prompt('Copy this private link:', url); }
   },
   async copyLink() {
     try { await navigator.clipboard.writeText(state.publish.url); toast('Link copied!'); }
@@ -503,6 +636,10 @@ async function doPublish() {
     log.textContent = lines.join('\n');
     log.scrollTop = log.scrollHeight;
   };
+  if (needsBackend() && !state.weddingId) {
+    write('Activating online RSVPs & guestbook…');
+    if (!(await ensureWedding({ quiet: true }))) write('⚠ Online RSVP backend unavailable — publishing anyway; RSVPs will not be saved.');
+  }
   try {
     const res = await publishToGitHub({ token, repo, onLog: write, buildFiles: siteUrl => buildSiteFiles(state, { siteUrl }) });
     state.publish = { repo, url: res.url };
@@ -546,4 +683,9 @@ $('#device').addEventListener('click', e => {
   $('#saveState').textContent = '✓ Saved on this device';
   $('#saveState').classList.add('ok');
   sendPreview();
+  // quietly register the wedding for online RSVPs / guestbook so the preview forms work
+  if (needsBackend() && !state.weddingId && await ensureWedding({ quiet: true })) {
+    sendPreview();
+    if (tab === 'guests') renderPanel();
+  }
 })();

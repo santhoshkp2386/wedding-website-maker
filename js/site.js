@@ -1,6 +1,7 @@
 // Renders a wedding website from a config object.
 // Modes: published (loads ./config.json), ?draft (loads the builder's saved project), ?preview (live, via postMessage).
 import { fontsHref, fontStack } from './fonts.js';
+import { submitRsvp, addWish, listWishes } from './backend.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -27,6 +28,21 @@ let parts = new Map();
 let introDone = isPreview; // in the builder, the intro is shown only on demand
 let audio = null;
 let renderedOnce = false;
+let previewInvite = null; // builder can preview the site "as" a specific invite
+
+// ---------- personal invites (?i=sharma-family) ----------
+const inviteSlug = () => (isPreview ? previewInvite : params.get('i') || params.get('to')) || '';
+const getInvite = () => {
+  const s = inviteSlug().toLowerCase();
+  return s ? (cfg?.invites || []).find(v => v.slug === s) || null : null;
+};
+const allEvents = () => (cfg?.sections || []).find(s => s.type === 'events' && s.enabled !== false)?.data?.items || [];
+const visibleEvents = items => {
+  const inv = getInvite();
+  return inv?.events?.length ? items.filter(e => inv.events.includes(e.id)) : items;
+};
+const rsvpKey = () => `rsvp:${cfg?.weddingId}:${inviteSlug()}`;
+const loadPrev = () => { try { return JSON.parse(localStorage.getItem(rsvpKey()) || 'null'); } catch { return null; } };
 
 // ---------- dates ----------
 function parseDate(d, t) {
@@ -80,7 +96,7 @@ const R = {
         <div class="card tilt"><span class="tl-date">${esc(it.date)}</span><h3>${esc(it.title)}</h3><p>${nl2br(it.text)}</p></div>
       </article>`).join('')}</div>`,
 
-  events: d => `<div class="events">${(d.items || []).map(ev => {
+  events: d => `<div class="events">${visibleEvents(d.items || []).map(ev => {
     const when = parseDate(ev.date, ev.time);
     const maps = ev.address || ev.venue ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([ev.venue, ev.address].filter(Boolean).join(', '))}` : '';
     let cal = '';
@@ -130,6 +146,29 @@ const R = {
       const u = safeUrl(d.target);
       return `<div class="card rsvp reveal">${intro}${u ? `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">RSVP now</a>` : '<p class="empty-note">Add your form link in the builder.</p>'}</div>`;
     }
+    if (!d.method || d.method === 'online') {
+      const inv = getInvite();
+      const evs = visibleEvents(allEvents()).filter(e => e.name);
+      const max = Math.max(1, Number(inv?.maxGuests) || 10);
+      const prev = loadPrev();
+      const yes = prev ? prev.attending : true;
+      return `<form class="card rsvp reveal" data-rsvp-online>
+      ${intro}
+      ${inv ? `<p class="center invite-for">Invitation for <strong>${esc(inv.name)}</strong>${inv.maxGuests ? ` · ${esc(inv.maxGuests)} ${Number(inv.maxGuests) > 1 ? 'seats' : 'seat'} reserved` : ''}</p>` : ''}
+      ${prev ? `<p class="center prev-note">You replied earlier — update anything below and send again.</p>` : ''}
+      <label>Your name<input name="name" required maxlength="120" autocomplete="name" value="${esc(prev?.name || inv?.name || '')}"></label>
+      <div class="choice">
+        <label><input type="radio" name="attend" value="yes" ${yes ? 'checked' : ''}><span>Joyfully accepts</span></label>
+        <label><input type="radio" name="attend" value="no" ${yes ? '' : 'checked'}><span>Regretfully declines</span></label>
+      </div>
+      <div class="if-yes">
+        <label>Number of guests (including you)<input name="guests" type="number" min="1" max="${max}" value="${esc(Math.min(max, prev?.guests || 1))}"></label>
+        ${evs.length > 1 ? `<fieldset class="ev-pick"><legend>Which events will you attend?</legend>${evs.map(e => `<label><input type="checkbox" name="events" value="${esc(e.name)}" ${!prev || prev.events?.includes(e.name) ? 'checked' : ''}><span>${esc(e.name)}</span></label>`).join('')}</fieldset>` : ''}
+      </div>
+      <label>A note for the couple<textarea name="msg" rows="3" maxlength="1000">${esc(prev?.message || '')}</textarea></label>
+      <button class="btn" type="submit">Send RSVP</button>
+    </form>`;
+    }
     return `<form class="card rsvp reveal" data-rsvp>
       ${intro}
       <label>Your name<input name="name" required autocomplete="name"></label>
@@ -167,6 +206,16 @@ const R = {
 
   faq: d => `<div class="faq narrow">${(d.items || []).map(f => `<details class="card reveal"><summary>${esc(f.q)}</summary><p>${nl2br(f.a)}</p></details>`).join('')}</div>`,
 
+  wishes: d => `<div class="wishes">
+      <form class="card wish-form reveal" data-wish>
+        ${d.text ? `<p class="center">${nl2br(d.text)}</p>` : ''}
+        <input name="name" placeholder="Your name" required maxlength="80" autocomplete="name" value="${esc(getInvite()?.name || '')}">
+        <textarea name="msg" placeholder="Your wishes for the couple…" required maxlength="500" rows="3"></textarea>
+        <button class="btn" type="submit">Send wishes 💖</button>
+      </form>
+      <div class="wish-wall" data-wall><p class="empty-note">Be the first to leave a wish ✨</p></div>
+    </div>`,
+
   thanks: d => `<div class="thanks reveal"><p>${nl2br(d.text)}</p><p class="sign">${esc(cfg.couple.partner1)} &amp; ${esc(cfg.couple.partner2)}</p></div>`,
 };
 
@@ -182,8 +231,10 @@ function sectionHtml(s) {
 function heroHtml(c) {
   const p = c.couple || {};
   const date = parseDT(p.date);
+  const inv = getInvite();
   return `<section class="hero ${c.scene?.hero === 'none' ? 'center' : ''}" id="top">
     <div class="hero-inner">
+      ${inv ? `<p class="greet">Dear ${esc(inv.name)},</p>` : ''}
       ${p.tagline ? `<p class="eyebrow">${esc(p.tagline)}</p>` : ''}
       <h1 class="names"><span>${esc(p.partner1)}</span><span class="amp">&amp;</span><span>${esc(p.partner2)}</span></h1>
       <p class="hero-date"><span class="nw">${esc(fmtLong(date))}</span>${p.location ? `<span class="dot">•</span><span class="nw">${esc(p.location)}</span>` : ''}</p>
@@ -241,6 +292,17 @@ const io = new IntersectionObserver(entries => entries.forEach(e => {
   if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
 }), { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 
+function wishCard(w, i, fresh = false) {
+  const el = document.createElement('figure');
+  el.className = 'wish' + (fresh ? ' fresh' : '');
+  // deterministic tilt/float per wish so re-renders don't jump
+  const seed = (Number(w.id) || i) * 9301 % 233;
+  el.style.setProperty('--rot', `${((seed % 7) - 3) * 0.8}deg`);
+  el.style.setProperty('--delay', `${(seed % 10) * -0.6}s`);
+  el.innerHTML = `<blockquote>${nl2br(w.message)}</blockquote><figcaption>— ${esc(w.name)}</figcaption>`;
+  return el;
+}
+
 function wire(root) {
   const cleanups = [];
   $$('.reveal', root).forEach(el => io.observe(el));
@@ -264,6 +326,68 @@ function wire(root) {
     if (f.closest('[data-ring]')?.dataset.dragged === '1') return;
     openLightbox(+f.dataset.lb);
   }));
+
+  $$('[data-rsvp-online]', root).forEach(form => form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!cfg.weddingId) { toast('Online RSVP is not activated yet — open the Guests tab in the builder.'); return; }
+    const f = new FormData(form);
+    const attending = f.get('attend') === 'yes';
+    const reply = {
+      name: String(f.get('name') || '').trim(), invite: inviteSlug(), attending,
+      guests: attending ? Number(f.get('guests')) || 1 : 0,
+      events: attending ? (form.querySelector('.ev-pick') ? f.getAll('events') : visibleEvents(allEvents()).map(x => x.name).filter(Boolean)) : [],
+      message: String(f.get('msg') || '').trim(),
+    };
+    if (!reply.name) return;
+    if (attending && form.querySelector('.ev-pick') && !reply.events.length) { toast('Please pick at least one event'); return; }
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await submitRsvp(cfg.weddingId, reply);
+      try { localStorage.setItem(rsvpKey(), JSON.stringify(reply)); } catch { /* private mode */ }
+      const original = form.innerHTML;
+      form.innerHTML = `<div class="rsvp-done"><div class="big">${attending ? '💌' : '🤍'}</div>
+        <h3>Thank you, ${esc(reply.name)}!</h3>
+        <p>${attending ? `We can't wait to celebrate with you${reply.guests > 1 ? ` — all ${reply.guests} of you` : ''}!` : "We'll miss you — thank you for letting us know."}</p>
+        <button type="button" class="btn ghost small" data-again>Change my reply</button></div>`;
+      form.querySelector('[data-again]').onclick = () => { form.innerHTML = original; const b = form.querySelector('button[type=submit]'); b.disabled = false; b.textContent = 'Send RSVP'; };
+      if (attending) scene?.burst?.();
+    } catch (err) {
+      toast('Could not send: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Send RSVP';
+    }
+  }));
+
+  $$('[data-wish]', root).forEach(form => form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!cfg.weddingId) { toast('The guestbook is not activated yet — open the Guests tab in the builder.'); return; }
+    const f = new FormData(form);
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      const w = await addWish(cfg.weddingId, String(f.get('name')).trim(), String(f.get('msg')).trim());
+      form.querySelector('textarea').value = '';
+      const wall = form.parentElement.querySelector('[data-wall]');
+      wall.querySelector('.empty-note')?.remove();
+      wall.prepend(wishCard(w, 0, true));
+      toast('Thank you for your wishes 💖');
+    } catch (err) { toast('Could not send: ' + err.message); }
+    btn.disabled = false;
+  }));
+
+  $$('[data-wall]', root).forEach(wall => {
+    const load = async () => {
+      if (!cfg.weddingId) { wall.innerHTML = '<p class="empty-note">The guestbook activates once the site is set up for online wishes.</p>'; return; }
+      try {
+        const list = await listWishes(cfg.weddingId);
+        if (!list?.length) return;
+        wall.replaceChildren(...list.map((w, i) => wishCard(w, i)));
+      } catch (err) { console.warn('wishes:', err.message); }
+    };
+    load();
+    const t = setInterval(() => { if (!document.hidden) load(); }, 60000);
+    cleanups.push(() => clearInterval(t));
+  });
 
   $$('[data-rsvp]', root).forEach(form => form.addEventListener('submit', e => {
     e.preventDefault();
@@ -369,7 +493,7 @@ function showIntro(c) {
   const el = toNode(`<div id="intro" class="intro">
     <div class="envelope" role="button" tabindex="0" aria-label="Open invitation">
       <div class="env-back"></div>
-      <div class="letter"><p>${esc(c.intro?.text || 'You are invited')}</p><h2>${esc(p.partner1)} &amp; ${esc(p.partner2)}</h2><small>${esc(fmtLong(parseDT(p.date)))}</small></div>
+      <div class="letter">${getInvite() ? `<em class="dear">Dear ${esc(getInvite().name)},</em>` : ''}<p>${esc(c.intro?.text || 'You are invited')}</p><h2>${esc(p.partner1)} &amp; ${esc(p.partner2)}</h2><small>${esc(fmtLong(parseDT(p.date)))}</small></div>
       <div class="env-front"></div><div class="flap"></div>
       <span class="seal">${esc((p.partner1 || 'A')[0])}${esc((p.partner2 || 'B')[0])}</span>
     </div>
@@ -472,7 +596,11 @@ async function boot() {
     addEventListener('message', e => {
       if (e.origin !== location.origin) return;
       const m = e.data || {};
-      if (m.type === 'config') render(m.config);
+      if (m.type === 'config') {
+        const inv = m.invite || null;
+        if (inv !== previewInvite) { previewInvite = inv; parts.forEach(p => (p.html = '')); } // force refresh of personalised parts
+        render(m.config);
+      }
       else if (m.type === 'replayIntro' && cfg) { showIntro(cfg); }
       else if (m.type === 'scrollTo') document.getElementById('sec-' + m.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });

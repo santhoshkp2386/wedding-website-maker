@@ -48,7 +48,8 @@ main { position: relative; z-index: 2; }
   min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   text-align: center; padding: 0 16px 15vh; position: relative;
 }
-.hero.center { justify-content: center; padding-bottom: 0; }
+.hero.center, .hero.pos-center { justify-content: center; padding-bottom: 0; }
+.hero.pos-top { justify-content: flex-start; padding: 13vh 16px 0; }
 .hero-inner > * { opacity: 0; transform: translateY(26px); animation: rise 1.2s cubic-bezier(.2, .7, .2, 1) forwards; }
 .hero-inner > :nth-child(2) { animation-delay: .25s; }
 .hero-inner > :nth-child(3) { animation-delay: .5s; }
@@ -57,7 +58,7 @@ main { position: relative; z-index: 2; }
 .eyebrow { letter-spacing: .35em; text-transform: uppercase; font-size: .75em; color: var(--primary); margin: 0 0 .7em; }
 .names {
   font-family: var(--fd); font-weight: 400; margin: 0; line-height: 1.05;
-  font-size: clamp(2.7rem, 9vw, 7rem);
+  font-size: calc(clamp(2.7rem, 9vw, 7rem) * var(--name-scale, 1));
   text-shadow: 0 4px 34px color-mix(in srgb, var(--bg) 85%, transparent);
 }
 .names span { display: inline-block; }
@@ -336,3 +337,44 @@ figure figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 2
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- per-section style options ---------- */
+.sec.w-narrow { max-width: 780px; }
+.sec.w-wide { max-width: 1400px; }
+.sec.sp-compact { padding-top: clamp(36px, 5vw, 60px); padding-bottom: clamp(36px, 5vw, 60px); }
+.sec.sp-roomy { padding-top: clamp(110px, 15vw, 190px); padding-bottom: clamp(110px, 15vw, 190px); }
+.sec.bg-band::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: calc(50% - 50vw); right: calc(50% - 50vw); z-index: -1;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--primary) 10%, transparent) 15%, color-mix(in srgb, var(--accent) 10%, transparent) 85%, transparent);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.sec.bg-glass {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 32px; box-shadow: var(--shadow);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  margin: clamp(24px, 4vw, 48px) auto; width: calc(100% - 32px);
+}
+.sec.bg-glass .card { background: color-mix(in srgb, var(--bg) 25%, transparent); }
+.sec.al-left .sec-title, .sec.al-left .center, .sec.al-left .thanks, .sec.al-left .quote { text-align: left; }
+.sec.al-left .divider { justify-content: flex-start; }
+.sec.al-left .divider::before { display: none; }
+.sec.anim-zoom .reveal:not(.in) { transform: scale(.82); }
+.sec.anim-flip .reveal:not(.in) { transform: perspective(900px) rotateY(-38deg) translateX(-30px); transform-origin: 0 50%; }
+.sec.anim-slide .reveal:not(.in) { transform: translateX(-90px); }
+.sec.anim-none .reveal { opacity: 1; transform: none; transition: none; }
+
+/* ---------- builder preview editing aids ---------- */
+.ed-bar { display: none; }
+html.editing .ed-bar {
+  position: absolute; top: 12px; right: 12px; z-index: 30; display: flex; align-items: center; gap: 2px;
+  padding: 4px; border-radius: 10px; background: rgba(20, 20, 28, .92); box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+  font: 500 12px/1 Inter, system-ui, sans-serif; color: #fff; opacity: 0; transform: translateY(-4px); transition: .2s; pointer-events: none;
+}
+html.editing .sec:hover > .ed-bar, html.editing .hero:hover > .ed-bar { opacity: 1; transform: none; pointer-events: auto; }
+html.editing .hero > .ed-bar { top: 16px; left: 50%; right: auto; translate: -50% 0; }
+.ed-label { padding: 0 8px; color: #e7a6b4; white-space: nowrap; }
+.ed-bar button { border: 0; background: transparent; color: #fff; min-width: 30px; height: 28px; border-radius: 7px; cursor: pointer; font: inherit; padding: 0 6px; }
+.ed-bar button:hover { background: rgba(255, 255, 255, .14); }
+html.editing .sec:hover { outline: 1.5px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: -6px; border-radius: 14px; }
+html.editing [data-edit] { cursor: text; border-radius: 6px; transition: box-shadow .2s; }
+html.editing [data-edit]:hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 45%, transparent); }
+[data-edit].is-editing { outline: 2px solid var(--primary); outline-offset: 4px; background: color-mix(in srgb, var(--bg) 60%, transparent); }

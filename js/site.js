@@ -219,11 +219,21 @@ const R = {
   thanks: d => `<div class="thanks reveal"><p>${nl2br(d.text)}</p><p class="sign">${esc(cfg.couple.partner1)} &amp; ${esc(cfg.couple.partner2)}</p></div>`,
 };
 
+// editable text (preview only): double-click to edit in place
+const ed = path => (isPreview ? ` data-edit="${esc(path)}" title="Double-click to edit"` : '');
+
+const SEC_TOOLS = [['edit', '✎', 'Edit'], ['up', '↑', 'Move up'], ['down', '↓', 'Move down'], ['dup', '⧉', 'Duplicate'], ['hide', '👁', 'Hide'], ['delete', '🗑', 'Delete']];
+const edBar = (id, label) => (isPreview ? `<div class="ed-bar" data-sec-tools="${esc(id)}"><span class="ed-label">${esc(label)}</span>${SEC_TOOLS.map(([a, i, t]) => `<button type="button" data-act="${a}" title="${t}">${i}</button>`).join('')}</div>` : '');
+const SEC_LABEL = { countdown: 'Countdown', story: 'Our Story', events: 'Events', gallery: 'Gallery', map: 'Map', rsvp: 'RSVP', dresscode: 'Dress code', quote: 'Quote', video: 'Video', people: 'Wedding party', travel: 'Travel', registry: 'Gifts', faq: 'FAQ', wishes: 'Guestbook', thanks: 'Thank you' };
+
 function sectionHtml(s) {
   const body = R[s.type]?.(s.data || {}) ?? '';
   const title = s.data?.title;
-  return `<section class="sec sec-${s.type}" id="sec-${esc(s.id)}">
-    ${title ? `<h2 class="sec-title reveal">${esc(title)}</h2>${divider}` : ''}
+  const st = s.style || {};
+  const cls = [`sec`, `sec-${s.type}`, `bg-${st.bg || 'none'}`, `w-${st.width || 'normal'}`, `sp-${st.spacing || 'normal'}`, `anim-${st.anim || 'rise'}`, `al-${st.align || 'center'}`].join(' ');
+  return `<section class="${cls}" id="sec-${esc(s.id)}">
+    ${edBar(s.id, SEC_LABEL[s.type] || s.type)}
+    ${title ? `<h2 class="sec-title reveal"${ed(`sec:${s.id}:title`)}>${esc(title)}</h2>${divider}` : ''}
     ${body}
   </section>`;
 }
@@ -232,13 +242,20 @@ function heroHtml(c) {
   const p = c.couple || {};
   const date = parseDT(p.date);
   const inv = getInvite();
-  return `<section class="hero ${c.scene?.hero === 'none' ? 'center' : ''}" id="top">
+  const L = c.heroLayout || {};
+  const pos = c.scene?.hero === 'none' && (!L.textPos || L.textPos === 'bottom') ? 'center' : (L.textPos || 'bottom');
+  const tools = isPreview ? `<div class="ed-bar hero-bar"><span class="ed-label">Top of page</span>
+      <button type="button" data-hero-act="details" title="Edit names, date & place">✎ Text</button>
+      <button type="button" data-hero-act="layout" title="Move & resize the 3D object and text">✥ Layout</button>
+      <button type="button" data-hero-act="template" title="Change template">✨ Theme</button></div>` : '';
+  return `<section class="hero pos-${pos}" id="top" style="--name-scale:${Number(L.nameSize) || 1}">
+    ${tools}
     <div class="hero-inner">
       ${inv ? `<p class="greet">Dear ${esc(inv.name)},</p>` : ''}
-      ${p.tagline ? `<p class="eyebrow">${esc(p.tagline)}</p>` : ''}
-      <h1 class="names"><span>${esc(p.partner1)}</span><span class="amp">&amp;</span><span>${esc(p.partner2)}</span></h1>
+      ${p.tagline ? `<p class="eyebrow"${ed('couple.tagline')}>${esc(p.tagline)}</p>` : ''}
+      <h1 class="names"><span${ed('couple.partner1')}>${esc(p.partner1)}</span><span class="amp">&amp;</span><span${ed('couple.partner2')}>${esc(p.partner2)}</span></h1>
       <p class="hero-date"><span class="nw">${esc(fmtLong(date))}</span>${p.location ? `<span class="dot">•</span><span class="nw">${esc(p.location)}</span>` : ''}</p>
-      ${p.hashtag ? `<p class="hashtag">${esc(p.hashtag)}</p>` : ''}
+      ${p.hashtag ? `<p class="hashtag"${ed('couple.hashtag')}>${esc(p.hashtag)}</p>` : ''}
     </div>
     <a class="scroll-cue" href="#content" aria-label="Scroll down"><span></span></a>
   </section>`;
@@ -591,6 +608,46 @@ async function render(c) {
   if (scene) scene.update(cfg);
 }
 
+// ---------- builder preview: toolbars + inline editing ----------
+function setupPreviewEditing() {
+  const post = m => parent.postMessage(m, location.origin);
+  document.documentElement.classList.add('editing');
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-sec-tools] button');
+    if (b) { e.preventDefault(); post({ type: 'sectionAction', id: b.closest('[data-sec-tools]').dataset.secTools, action: b.dataset.act }); return; }
+    const h = e.target.closest('[data-hero-act]');
+    if (h) { e.preventDefault(); post({ type: 'heroAction', action: h.dataset.heroAct }); }
+  });
+  document.addEventListener('dblclick', e => {
+    const el = e.target.closest('[data-edit]');
+    if (!el || el.isContentEditable) return;
+    try { el.contentEditable = 'plaintext-only'; } catch { el.contentEditable = 'true'; }
+    el.classList.add('is-editing');
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    const before = el.textContent;
+    const finish = save => {
+      el.removeEventListener('blur', onBlur);
+      el.removeEventListener('keydown', onKey);
+      el.contentEditable = 'false';
+      el.classList.remove('is-editing');
+      const value = el.textContent.trim();
+      if (save && value && value !== before) post({ type: 'editText', path: el.dataset.edit, value });
+      else el.textContent = before;
+    };
+    const onBlur = () => finish(true);
+    const onKey = ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+      if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+    };
+    el.addEventListener('blur', onBlur);
+    el.addEventListener('keydown', onKey);
+  });
+}
+
 async function boot() {
   if (isPreview) {
     addEventListener('message', e => {
@@ -604,6 +661,7 @@ async function boot() {
       else if (m.type === 'replayIntro' && cfg) { showIntro(cfg); }
       else if (m.type === 'scrollTo') document.getElementById('sec-' + m.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+    setupPreviewEditing();
     parent.postMessage({ type: 'ready' }, location.origin);
     return;
   }

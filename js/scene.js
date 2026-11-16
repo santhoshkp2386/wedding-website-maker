@@ -141,6 +141,7 @@ const FX = {
   bokeh: { n: 32, size: [0.8, 1.8], tex: 'ring', color: 'primary', vy: [0.03, 0.1], sway: 0.2, spin: 0, opacity: 0.35, glow: true },
   confetti: { n: 150, size: [0.12, 0.22], tex: 'rect', color: 'multi', vy: [-1, -0.55], sway: 0.5, spin: 4 },
   lanterns: { n: 22, size: [0.35, 0.6], tex: 'lantern', color: '#ffb347', vy: [0.2, 0.42], sway: 0.2, spin: 0.1, twinkle: 0.35, glow: true },
+  marigold: { n: 75, size: [0.28, 0.5], tex: 'petal', color: 'marigold', vy: [-0.85, -0.4], sway: 0.7, spin: 1.8 },
   stars: { n: 900, size: [0.05, 0.14], tex: 'dot', color: 'white', vy: [0, 0], sway: 0, spin: 0, twinkle: 1, glow: true, far: true },
 };
 
@@ -157,7 +158,8 @@ class Particles {
       if (c === 'white') return light ? colors.primary : '#ffffff';
       return c;
     };
-    const multi = [colors.primary, colors.accent, light ? colors.text : '#ffffff', '#ffd1dc'];
+    const multi = def.color === 'marigold' ? ['#ff9f1c', '#ffbf00', '#ff7b00', '#ffd23f']
+      : [colors.primary, colors.accent, light ? colors.text : '#ffffff', '#ffd1dc'];
     for (let i = 0; i < n; i++) {
       const z = def.far ? rand(-70, -25) : rand(-14, 4);
       const yb = this.yBound(z);
@@ -169,7 +171,7 @@ class Particles {
       seed[i] = Math.random();
       this.vy[i] = rand(def.vy[0], def.vy[1]);
       this.spin[i] = rand(-1, 1) * (def.spin || 0);
-      col.set(hexRgb(def.color === 'multi' ? multi[i % multi.length] : resolve(def.color)), i * 3);
+      col.set(hexRgb(def.color === 'multi' || def.color === 'marigold' ? multi[i % multi.length] : resolve(def.color)), i * 3);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -394,7 +396,10 @@ export class WeddingScene {
     const g = new THREE.Group();
     this.hero.add(g);
     this.heroBaseY = 1.15;
-    const build = { carousel: this.heroCarousel, portrait: this.heroPortrait, rings: this.heroRings, frames: this.heroFrames, heart: this.heroHeart }[type];
+    const build = {
+      carousel: this.heroCarousel, portrait: this.heroPortrait, rings: this.heroRings, frames: this.heroFrames, heart: this.heroHeart,
+      mandap: this.heroMandap, lotus: this.heroLotus, monogram: this.heroMonogram, galaxy: this.heroGalaxy, cube: this.heroCube, garland: this.heroGarland,
+    }[type];
     if (build) this.heroTick = build.call(this, g, photos, cfg);
   }
 
@@ -564,6 +569,325 @@ export class WeddingScene {
     };
   }
 
+  glowSprite(color, scale, opacity = 0.5) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: spriteTex('glow'), color, transparent: true, depthWrite: false, opacity: this.tone === 'light' ? opacity * 0.7 : opacity,
+      blending: this.tone === 'light' ? THREE.NormalBlending : THREE.AdditiveBlending,
+    }));
+    sp.scale.set(scale, scale, 1);
+    return sp;
+  }
+
+  // Indian wedding mandap: gold pillars, draped dome, marigold garlands, couple photo inside
+  heroMandap(g, photos, cfg) {
+    const V = THREE.Vector3;
+    const gold = this.frameMaterial(cfg);
+    const cloth = new THREE.MeshStandardMaterial({ color: cfg.colors.accent, roughness: 0.55, metalness: 0.15, side: THREE.DoubleSide });
+    const W = 1.9, D = 1.25, H = 3.2, top = H / 2 - 0.08;
+    const m = new THREE.Group();
+    g.add(m);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 2.85, 0.22, 64), new THREE.MeshStandardMaterial({ color: cfg.colors.primary, metalness: 0.6, roughness: 0.35 }));
+    base.position.y = -H / 2 - 0.11;
+    m.add(base);
+    const pg = new THREE.CylinderGeometry(0.09, 0.11, H, 24), cg = new THREE.TorusGeometry(0.13, 0.04, 12, 32);
+    for (const x of [-W, W]) for (const z of [-D, D]) {
+      const p = new THREE.Mesh(pg, gold);
+      p.position.set(x, 0, z);
+      m.add(p);
+      for (const y of [-H / 2 + 0.12, 0, H / 2 - 0.12]) {
+        const c = new THREE.Mesh(cg, gold);
+        c.rotation.x = Math.PI / 2;
+        c.position.set(x, y, z);
+        m.add(c);
+      }
+    }
+    const bx = new THREE.BoxGeometry(2 * W + 0.3, 0.12, 0.12), bz = new THREE.BoxGeometry(0.12, 0.12, 2 * D + 0.3);
+    for (const z of [-D, D]) { const b = new THREE.Mesh(bx, gold); b.position.set(0, H / 2, z); m.add(b); }
+    for (const x of [-W, W]) { const b = new THREE.Mesh(bz, gold); b.position.set(x, H / 2, 0); m.add(b); }
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 20, 0, Math.PI * 2, 0, Math.PI / 2), cloth);
+    dome.scale.set(W * 1.08, 0.8, D * 1.2);
+    dome.position.y = H / 2 + 0.06;
+    m.add(dome);
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.45, 16), gold);
+    fin.position.y = H / 2 + 0.06 + 0.8 + 0.2;
+    m.add(fin);
+    // marigold & jasmine garlands
+    const pts = [];
+    const swag = (a, b, n, depth) => { for (let i = 0; i <= n; i++) { const t = i / n; const p = a.clone().lerp(b, t); p.y -= Math.sin(Math.PI * t) * depth; pts.push(p); } };
+    swag(new V(-W, top, D + 0.06), new V(0, top, D + 0.06), 16, 0.5);
+    swag(new V(0, top, D + 0.06), new V(W, top, D + 0.06), 16, 0.5);
+    swag(new V(-W, top, -D - 0.06), new V(W, top, -D - 0.06), 26, 0.35);
+    for (const x of [-W, W]) swag(new V(x + Math.sign(x) * 0.06, top, -D), new V(x + Math.sign(x) * 0.06, top, D), 18, 0.4);
+    for (const x of [-W, W]) for (let i = 0; i < 18; i++) pts.push(new V(x - Math.sign(x) * 0.2, top - i * 0.13, D + 0.08));
+    const inst = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.075, 1), new THREE.MeshStandardMaterial({ roughness: 0.75 }), pts.length);
+    const mtx = new THREE.Matrix4(), col = new THREE.Color(), cols = ['#ff9f1c', '#ffbf00', '#ff7b00'];
+    pts.forEach((p, i) => { mtx.makeTranslation(p.x, p.y, p.z); inst.setMatrixAt(i, mtx); inst.setColorAt(i, col.set(i % 7 === 0 ? '#fffaf0' : cols[i % 3])); });
+    m.add(inst);
+    // couple photo on the back wall
+    const pw = 1.6, ph = 2.1;
+    const maps = photos.length ? photos.slice(0, 8).map(s => this.photo(s, pw / ph)) : [this.placeholder(cfg, pw / ph)];
+    const pic = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: maps[0], toneMapped: false }));
+    pic.position.set(0, -0.2, -D + 0.1);
+    const pf = new THREE.Mesh(new THREE.BoxGeometry(pw + 0.16, ph + 0.16, 0.05), gold);
+    pf.position.set(0, -0.2, -D + 0.06);
+    const halo = this.glowSprite(cfg.colors.primary, 5, 0.45);
+    halo.position.set(0, 0, -D - 0.3);
+    m.add(halo, pf, pic);
+    m.scale.setScalar(0.72);
+    m.position.y = -0.05;
+    let idx = 0, timer = 0;
+    return (t, dt) => {
+      m.rotation.y = Math.sin(t * 0.35) * 0.4;
+      if (maps.length > 1 && (timer += dt) > 5) { timer = 0; idx = (idx + 1) % maps.length; pic.material.map = maps[idx]; }
+    };
+  }
+
+  // Blooming lotus on water
+  heroLotus(g, photos, cfg) {
+    const lotus = new THREE.Group();
+    g.add(lotus);
+    const geo = new THREE.SphereGeometry(1, 28, 16);
+    geo.scale(0.34, 0.9, 0.12);
+    geo.translate(0, 0.9, 0);
+    const mix = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k);
+    const layers = [
+      { n: 9, r: 0.18, open: 1.3, sc: 1.0, col: mix(cfg.colors.accent, '#ffffff', 0.1) },
+      { n: 9, r: 0.14, open: 0.9, sc: 0.85, col: mix(cfg.colors.accent, cfg.colors.primary, 0.5), off: 0.5 },
+      { n: 7, r: 0.1, open: 0.5, sc: 0.68, col: mix(cfg.colors.primary, '#ffffff', 0.25), off: 0.25 },
+    ];
+    const petals = [];
+    layers.forEach(L => {
+      const mat = new THREE.MeshStandardMaterial({ color: L.col, roughness: 0.45, metalness: 0.05, side: THREE.DoubleSide, emissive: L.col, emissiveIntensity: 0.12 });
+      for (let i = 0; i < L.n; i++) {
+        const pivot = new THREE.Group();
+        pivot.rotation.y = (i + (L.off || 0)) / L.n * Math.PI * 2;
+        const p = new THREE.Mesh(geo, mat);
+        p.position.z = L.r;
+        p.scale.setScalar(L.sc);
+        pivot.add(p);
+        lotus.add(pivot);
+        petals.push({ p, open: L.open });
+      }
+    });
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.16, 0.2, 32), new THREE.MeshStandardMaterial({ color: '#f4d35e', roughness: 0.5, emissive: '#c99a00', emissiveIntensity: 0.2 }));
+    pod.position.y = 0.12;
+    lotus.add(pod);
+    const glow = this.glowSprite(cfg.colors.primary, 3.2, 0.55);
+    glow.position.y = 0.6;
+    lotus.add(glow);
+    // lily pads + ripples
+    const padMat = new THREE.MeshStandardMaterial({ color: '#3f8f4f', roughness: 0.6, side: THREE.DoubleSide });
+    [[-1.9, 0.6, 0.85], [1.8, -0.3, 0.7], [-0.9, -1.6, 0.55]].forEach(([x, z, r], i) => {
+      const pad = new THREE.Mesh(new THREE.CircleGeometry(r, 40, 0.35, Math.PI * 2 - 0.35), padMat);
+      pad.rotation.set(-Math.PI / 2, 0, i * 2.1);
+      pad.position.set(x, -0.02, z);
+      lotus.add(pad);
+    });
+    const ripples = [0, 1, 2].map(i => {
+      const r = new THREE.Mesh(new THREE.RingGeometry(0.95, 1, 64), new THREE.MeshBasicMaterial({ color: cfg.colors.primary, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      r.rotation.x = -Math.PI / 2;
+      r.userData.o = i / 3;
+      lotus.add(r);
+      return r;
+    });
+    lotus.rotation.x = 0.42;
+    lotus.position.y = -0.55;
+    lotus.scale.setScalar(1.15);
+    const t0 = this.heroT || 0;
+    return (t) => {
+      const k = Math.min(1, (t - t0) / 3);
+      const ease = 1 - Math.pow(1 - k, 3);
+      const breathe = Math.sin(t * 1.2) * 0.04;
+      petals.forEach(({ p, open }) => (p.rotation.x = 0.08 + (open - 0.08) * ease + breathe * open));
+      lotus.rotation.y = t * 0.15;
+      ripples.forEach(r => {
+        const f = (t * 0.25 + r.userData.o) % 1;
+        r.scale.setScalar(1 + f * 2.6);
+        r.material.opacity = (1 - f) * 0.35;
+      });
+    };
+  }
+
+  // Gold 3D monogram of the couple's initials
+  heroMonogram(g, photos, cfg) {
+    const gold = new THREE.MeshStandardMaterial({ color: cfg.colors.primary, metalness: 1, roughness: 0.2 });
+    const accent = new THREE.MeshStandardMaterial({ color: cfg.colors.accent, metalness: 0.7, roughness: 0.3 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.055, 16, 180), gold);
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(2.12, 0.02, 12, 180), gold);
+    g.add(ring, ring2);
+    const gems = [0, 1, 2, 3].map(i => {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), accent);
+      const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+      m.position.set(Math.cos(a) * 1.9, Math.sin(a) * 1.9, 0);
+      ring.add(m);
+      return m;
+    });
+    const text = new THREE.Group();
+    g.add(text);
+    const pick = n => { const c = String(n || '').trim()[0] || ''; return c.toUpperCase(); };
+    const a = pick(cfg.couple?.partner1), b = pick(cfg.couple?.partner2);
+    Promise.all([import('three/addons/loaders/FontLoader.js'), import('three/addons/geometries/TextGeometry.js')]).then(([{ FontLoader }, { TextGeometry }]) => {
+      WeddingScene.font ??= new FontLoader().loadAsync('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/gentilis_bold.typeface.json');
+      return WeddingScene.font.then(font => {
+        if (!g.parent) return; // hero was rebuilt meanwhile
+        const make = (s, size, mat) => {
+          if (!s || !font.data.glyphs[s]) return null;
+          const geo = new TextGeometry(s, { font, size, height: 0.2, depth: 0.2, curveSegments: 10, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.025, bevelSegments: 3 });
+          geo.center();
+          return new THREE.Mesh(geo, mat);
+        };
+        const A = make(a, 1.15, gold), amp = make('&', 0.6, accent), B = make(b, 1.15, gold);
+        if (A) { A.position.set(-0.78, 0.05, 0); text.add(A); }
+        if (amp) { amp.position.set(0, -0.35, 0.25); text.add(amp); }
+        if (B) { B.position.set(0.78, 0.05, 0); text.add(B); }
+      });
+    }).catch(err => console.warn('monogram font:', err));
+    const halo = this.glowSprite(cfg.colors.primary, 6, 0.3);
+    halo.position.z = -1;
+    g.add(halo);
+    return (t) => {
+      g.rotation.y = Math.sin(t * 0.5) * 0.4;
+      ring.rotation.z = t * 0.12;
+      ring2.rotation.z = -t * 0.08;
+      text.position.y = Math.sin(t * 1.1) * 0.06;
+      gems.forEach((m, i) => (m.rotation.y = t * 2 + i));
+    };
+  }
+
+  // Spiral galaxy with the couple's photos orbiting
+  heroGalaxy(g, photos, cfg) {
+    const N = 7000, R = 4.2, arms = 3;
+    const pos = new Float32Array(N * 3), size = new Float32Array(N), rot = new Float32Array(N), seed = new Float32Array(N), col = new Float32Array(N * 3);
+    const c1 = hexRgb(cfg.colors.primary), c2 = hexRgb(cfg.colors.accent);
+    for (let i = 0; i < N; i++) {
+      const r = Math.pow(Math.random(), 1.5) * R;
+      const ang = (i % arms) / arms * Math.PI * 2 + r * 1.15;
+      const spread = Math.pow(Math.random(), 3) * (0.25 + r * 0.22);
+      const sx = (Math.random() < 0.5 ? -1 : 1) * spread, sz = (Math.random() < 0.5 ? -1 : 1) * spread;
+      pos.set([Math.cos(ang) * r + sx, (Math.random() - 0.5) * 0.25 * (1.2 - r / R), Math.sin(ang) * r + sz], i * 3);
+      size[i] = rand(0.03, 0.09);
+      seed[i] = Math.random();
+      const k = Math.min(1, r / R * 1.3);
+      col.set([c1[0] + (c2[0] - c1[0]) * k, c1[1] + (c2[1] - c1[1]) * k, c1[2] + (c2[2] - c1[2]) * k], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aRot', new THREE.BufferAttribute(rot, 1));
+    geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+    const mat = particleMaterial(spriteTex('glow'), this.tone !== 'light', 1, 0.45);
+    const disk = new THREE.Group();
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    disk.add(pts);
+    const core = this.glowSprite(cfg.colors.primary, 2.6, 0.8);
+    disk.add(core);
+    disk.rotation.x = 0.62;
+    g.add(disk);
+    g.position.y = -0.1;
+    const list = photos.slice(0, 6);
+    const orbs = list.map((src, i) => {
+      const o = new THREE.Group();
+      const pic = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ map: this.photo(src, 1), toneMapped: false }));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.03, 12, 64), this.frameMaterial(cfg));
+      o.add(pic, rim);
+      o.userData = { r: 2.2 + (i % 3) * 0.55, a: i / list.length * Math.PI * 2, sp: 0.18 + (i % 2) * 0.06 };
+      disk.add(o);
+      return o;
+    });
+    return (t) => {
+      mat.uniforms.uTime.value = t;
+      mat.uniforms.uScale.value = this.pointScale;
+      pts.rotation.y = t * 0.06;
+      orbs.forEach(o => {
+        const a = o.userData.a + t * o.userData.sp;
+        o.position.set(Math.cos(a) * o.userData.r, 0.25, Math.sin(a) * o.userData.r);
+        o.lookAt(this.camera.position);
+      });
+    };
+  }
+
+  // Rotating cube of photos with gold edges
+  heroCube(g, photos, cfg) {
+    const S = 2;
+    const all = photos.length ? photos : [];
+    const mats = [...Array(6)].map((_, i) => new THREE.MeshBasicMaterial({ map: all.length ? this.photo(all[i % all.length], 1) : this.placeholder(cfg, 1, i), toneMapped: false }));
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(S, S, S), mats);
+    const gold = this.frameMaterial(cfg);
+    const bar = new THREE.BoxGeometry(S + 0.1, 0.08, 0.08);
+    const h = S / 2;
+    for (const a of [-h, h]) for (const b of [-h, h]) {
+      const x = new THREE.Mesh(bar, gold); x.position.set(0, a, b); cube.add(x);
+      const y = new THREE.Mesh(bar, gold); y.rotation.z = Math.PI / 2; y.position.set(a, 0, b); cube.add(y);
+      const z = new THREE.Mesh(bar, gold); z.rotation.y = Math.PI / 2; z.position.set(a, b, 0); cube.add(z);
+    }
+    const halo = this.glowSprite(cfg.colors.primary, 6, 0.4);
+    halo.position.z = -2;
+    g.add(halo, cube);
+    g.position.y = 0.1;
+    let next = 6, timer = 0;
+    return (t, dt) => {
+      cube.rotation.x = 0.35 + Math.sin(t * 0.4) * 0.3;
+      cube.rotation.y = t * 0.45;
+      cube.position.y = Math.sin(t * 0.9) * 0.08;
+      if (all.length > 6 && (timer += dt) > 3.5) { timer = 0; mats[next % 6].map = this.photo(all[next % all.length], 1); next++; }
+    };
+  }
+
+  // Polaroids hanging from strings of fairy lights
+  heroGarland(g, photos, cfg) {
+    const list = photos.length ? photos : [null, null, null, null, null];
+    const rows = [{ y: 1.75, z: 0, n: 5, w: 6.2, sag: 0.55 }, { y: 0.55, z: -1.6, n: 4, w: 5.6, sag: 0.45 }];
+    const paper = new THREE.MeshStandardMaterial({ color: '#fbf8f2', roughness: 0.9 });
+    const clip = new THREE.MeshStandardMaterial({ color: cfg.colors.primary, metalness: 0.7, roughness: 0.3 });
+    const cord = new THREE.MeshStandardMaterial({ color: this.tone === 'light' ? '#7a5c45' : '#c8b08a', roughness: 0.8 });
+    const cards = [], bulbs = [];
+    let k = 0;
+    rows.forEach((row, ri) => {
+      const curve = new THREE.CatmullRomCurve3([...Array(9)].map((_, i) => {
+        const t = i / 8;
+        return new THREE.Vector3((t - 0.5) * row.w, row.y - Math.sin(Math.PI * t) * row.sag, row.z);
+      }));
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.012, 6), cord));
+      for (let i = 0; i < 22; i++) {
+        const b = this.glowSprite('#ffd27a', 0.35, 0.9);
+        b.position.copy(curve.getPoint((i + 0.5) / 22));
+        b.position.y -= 0.03;
+        b.userData.s = Math.random() * 10;
+        g.add(b);
+        bulbs.push(b);
+      }
+      for (let i = 0; i < row.n; i++) {
+        const pivot = new THREE.Group();
+        pivot.position.copy(curve.getPoint((i + 0.5) / row.n));
+        const card = new THREE.Group();
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.4, 0.02), paper);
+        const src = list[k % list.length];
+        const pic = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: src ? this.photo(src, 1) : this.placeholder(cfg, 1, k), toneMapped: false }));
+        pic.position.set(0, 0.12, 0.012);
+        const c = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.05), clip);
+        c.position.y = 0.72;
+        card.add(frame, pic, c);
+        card.position.y = -0.78;
+        pivot.add(card);
+        pivot.userData = { s: k * 1.7, ri };
+        g.add(pivot);
+        cards.push(pivot);
+        k++;
+      }
+    });
+    g.position.y = -0.2;
+    return (t) => {
+      cards.forEach(p => {
+        p.rotation.z = Math.sin(t * 1.1 + p.userData.s) * 0.07;
+        p.rotation.y = Math.sin(t * 0.7 + p.userData.s) * 0.18;
+      });
+      bulbs.forEach(b => (b.material.opacity = 0.55 + 0.45 * Math.abs(Math.sin(t * 1.6 + b.userData.s))));
+      g.rotation.y = Math.sin(t * 0.25) * 0.12;
+    };
+  }
+
   // ----- loop -----
   loop() {
     requestAnimationFrame(this.loop);
@@ -582,11 +906,15 @@ export class WeddingScene {
     cam.position.z += (tz - cam.position.z) * 0.08;
     cam.lookAt(cam.position.x * 0.3, cam.position.y * 0.3, cam.position.z - 10);
 
+    const L = this.cfg?.heroLayout || {};
+    const objScale = clamp(Number(L.objScale) || 1, 0.3, 2.5), spin = clamp(Number(L.spin ?? 1), 0, 4);
     const s = clamp(cam.aspect / 1.3, 0.58, 1);
-    this.hero.scale.setScalar(frames ? clamp(cam.aspect / 1.1, 0.7, 1) : s);
-    this.hero.position.y = (this.heroBaseY ?? 1.15) * (frames ? 1 : s) + (frames ? 0 : sy * 7.5);
+    this.hero.scale.setScalar((frames ? clamp(cam.aspect / 1.1, 0.7, 1) : s) * objScale);
+    this.hero.position.x = (Number(L.objX) || 0) * s;
+    this.hero.position.y = (this.heroBaseY ?? 1.15) * (frames ? 1 : s) + (Number(L.objY) || 0) * s + (frames ? 0 : sy * 7.5);
     this.hero.visible = frames || sy < 1.6;
-    if (this.hero.visible) this.heroTick?.(t, dt, sy);
+    this.heroT = (this.heroT || 0) + dt * spin;
+    if (this.hero.visible) this.heroTick?.(this.heroT, dt * spin, sy);
 
     this.fx.position.z = cam.position.z - 10;
     for (const p of this.systems) p.tick(t, dt);

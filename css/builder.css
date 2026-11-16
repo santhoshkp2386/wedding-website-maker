@@ -267,3 +267,30 @@ input[type=date], input[type=time], input[type=datetime-local] { color-scheme: d
   .brand small { display: none; }
   .fx-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- editing extras ---------- */
+.undo-group { display: flex; gap: 2px; }
+.btn.icon { padding: 7px 11px; font-size: 16px; }
+.btn.link { margin-left: auto; padding: 2px 8px; font-size: 11px; text-transform: none; letter-spacing: 0; background: transparent; }
+.panel h3 .btn.link { color: var(--muted); }
+.field label output { color: var(--text); font-weight: 600; }
+.grip { cursor: grab; color: var(--muted); padding: 6px 2px; font-size: 16px; user-select: none; flex: none; }
+.grip:hover { color: var(--text); }
+.grip:active { cursor: grabbing; }
+.sec.dragging, .photo.dragging { opacity: .4; }
+.sec.drop-before { box-shadow: 0 -3px 0 0 var(--brand); }
+.sec.drop-after { box-shadow: 0 3px 0 0 var(--brand); }
+.photo.drop-before { box-shadow: -3px 0 0 0 var(--brand); }
+.photo.drop-after { box-shadow: 3px 0 0 0 var(--brand); }
+.thumb[draggable=true] { cursor: grab; }
+.sstyle { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.sstyle .field { margin-bottom: 8px; }
+.sstyle select { padding: 7px 9px; font-size: 12.5px; }
+.tpl-ico { position: absolute; top: 12px; font-size: 34px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); }
+.tpl-orb { display: none; }
+@media (max-width: 860px) { .undo-group { display: none; } }
+/* the app shell never scrolls as a whole (only panel/stage do), even on programmatic scrollIntoView */
+@media (min-width: 861px) { html, body { overflow: clip; } }
+.sec-body .sstyle .field:first-child { margin-top: 0; }
+/* keep visually-hidden inputs inside their controls (otherwise they stretch the page) */
+.toggle, .switch, .chips label, .flags label { position: relative; }

@@ -6,9 +6,14 @@ No server, no build step: it's plain HTML/JS with [Three.js](https://threejs.org
 ## Features
 
 - **Photos**: upload couple photos (resized in the browser) and choose which appear in the 3D hero and which in the gallery
-- **8 templates**: Royal Gold, Shubh Vivah, Blush Garden, Midnight Stars, Beach Sunset, Modern Minimal, Winter Wonderland, Celestial
-- **3D hero scenes**: photo carousel, arched portrait slideshow, interlocking gold rings, fly-through floating frames, particle heart
-- **Effects**: rose petals, sparkles, hearts, fireflies, sky lanterns, bokeh, snow, confetti, starfield, plus a sparkle cursor trail
+- **14 templates**: Mandap Mahal, Lotus Bloom, Monogram Luxe, Cosmic Love, Pop Party, Rustic Fairy Lights, Royal Gold, Shubh Vivah, Blush Garden, Midnight Stars, Beach Sunset, Modern Minimal, Winter Wonderland, Celestial
+- **11 3D hero scenes**: mandap with marigold garlands, blooming lotus, gold 3D monogram, love galaxy with orbiting photos, photo cube, fairy-light polaroid garland, photo carousel, arched portrait slideshow, gold rings, fly-through frames, particle heart
+- **Editing**:
+  - Drag and drop to reorder sections and photos, and undo/redo (Ctrl+Z)
+  - In the live preview: hover toolbars (edit, move, duplicate, hide, delete) and double-click any title or name to edit it in place
+  - Move, resize and change the speed of the 3D object; choose the name position and size
+  - Per-section style: glass panel or colour band background, width, spacing, title alignment, entrance animation (rise, zoom, 3D flip, slide)
+- **Effects**: rose and marigold petals, sparkles, hearts, fireflies, sky lanterns, bokeh, snow, confetti, starfield, plus a sparkle cursor trail
 - **Style**: your own colours and fonts, background style, mouse/phone-tilt parallax
 - **Elements**: countdown, our story timeline, events (with directions and add-to-calendar), 3D photo gallery, venue map, RSVP (WhatsApp, email or form), dress code, quote, YouTube video, wedding party, travel, gifts, FAQ, thank-you
 - **Opening envelope**: guests tap a 3D envelope to open the invitation, and background music starts

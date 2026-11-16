@@ -7,8 +7,19 @@ export const HERO_STYLES = [
   ['rings', 'Interlocking gold rings'],
   ['frames', 'Fly-through floating frames'],
   ['heart', 'Particle heart'],
+  ['mandap', 'Mandap with marigold garlands'],
+  ['lotus', 'Blooming lotus on water'],
+  ['monogram', 'Gold 3D monogram'],
+  ['galaxy', 'Love galaxy with orbiting photos'],
+  ['cube', 'Rotating photo cube'],
+  ['garland', 'Fairy-light polaroid garland'],
   ['none', 'None (text only)'],
 ];
+
+export const HERO_ICON = {
+  carousel: '🎠', portrait: '🖼️', rings: '💍', frames: '🎞️', heart: '💖', mandap: '🛕',
+  lotus: '🪷', monogram: '🔠', galaxy: '🌌', cube: '🧊', garland: '📸', none: '✒️',
+};
 
 export const BACKGROUNDS = [
   ['radial', 'Radial glow'],
@@ -19,6 +30,7 @@ export const BACKGROUNDS = [
 
 export const EFFECTS = [
   { id: 'petals', label: 'Rose petals', icon: '🌸' },
+  { id: 'marigold', label: 'Marigold petals', icon: '🏵️' },
   { id: 'sparkles', label: 'Sparkles', icon: '✨' },
   { id: 'hearts', label: 'Floating hearts', icon: '💕' },
   { id: 'fireflies', label: 'Fireflies', icon: '🪔' },
@@ -30,6 +42,42 @@ export const EFFECTS = [
 ];
 
 export const TEMPLATES = [
+  {
+    id: 'mandap', name: 'Mandap Mahal', desc: 'Gold mandap, marigold garlands',
+    colors: { bg: '#2a0a12', primary: '#e8b84a', accent: '#b0174f', text: '#fff3e0' },
+    fonts: { display: 'Marcellus', body: 'Mukta' },
+    scene: { hero: 'mandap', background: 'radial' }, effects: ['marigold', 'sparkles'],
+  },
+  {
+    id: 'lotus', name: 'Lotus Bloom', desc: 'A lotus that blooms on water',
+    colors: { bg: '#0d2b2b', primary: '#f6c1d1', accent: '#e75480', text: '#f2fbf9' },
+    fonts: { display: 'Alex Brush', body: 'Lora' },
+    scene: { hero: 'lotus', background: 'aurora' }, effects: ['fireflies', 'petals'],
+  },
+  {
+    id: 'monogram', name: 'Monogram Luxe', desc: 'Black tie, gold 3D initials',
+    colors: { bg: '#0f0f0f', primary: '#c9a96e', accent: '#7d6a4f', text: '#f5f0e6' },
+    fonts: { display: 'Cinzel', body: 'Montserrat' },
+    scene: { hero: 'monogram', background: 'radial' }, effects: ['sparkles'],
+  },
+  {
+    id: 'galaxy', name: 'Cosmic Love', desc: 'Spiral galaxy, orbiting photos',
+    colors: { bg: '#05030f', primary: '#9be7ff', accent: '#ff6ec7', text: '#f5f3ff' },
+    fonts: { display: 'Italiana', body: 'Raleway' },
+    scene: { hero: 'galaxy', background: 'plain' }, effects: ['stars', 'sparkles'],
+  },
+  {
+    id: 'cube', name: 'Pop Party', desc: 'Playful photo cube & confetti',
+    colors: { bg: '#fff8e7', primary: '#ff5d8f', accent: '#3a86ff', text: '#2b2d42' },
+    fonts: { display: 'Dancing Script', body: 'Poppins' },
+    scene: { hero: 'cube', background: 'gradient' }, effects: ['confetti', 'hearts'],
+  },
+  {
+    id: 'garland', name: 'Rustic Fairy Lights', desc: 'Polaroids on glowing strings',
+    colors: { bg: '#2b211a', primary: '#f2c57c', accent: '#a3b18a', text: '#f7efe5' },
+    fonts: { display: 'Parisienne', body: 'Quicksand' },
+    scene: { hero: 'garland', background: 'radial' }, effects: ['fireflies', 'bokeh'],
+  },
   {
     id: 'royal', name: 'Royal Gold', desc: 'Regal gold & maroon, 3D rings',
     colors: { bg: '#140d08', primary: '#d4af37', accent: '#8c2a3c', text: '#f8ecd4' },
@@ -207,9 +255,10 @@ export function defaultConfig() {
       partner1: 'Aarav', partner2: 'Diya', tagline: 'Together with their families',
       date: '2027-02-14T18:30', location: 'Udaipur, Rajasthan', hashtag: '#AaravWedsDiya',
     },
-    ...templateStyle(TEMPLATES[0]),
+    ...templateStyle(TEMPLATES.find(t => t.id === 'royal')),
     density: 1,
     cursorTrail: true,
+    heroLayout: { textPos: 'bottom', nameSize: 1, objScale: 1, objX: 0, objY: 0, spin: 1 },
     intro: { enabled: true, text: 'You are cordially invited' },
     music: { src: '', name: '' },
     photos: [],

@@ -1,4 +1,4 @@
-import { TEMPLATES, SECTION_TYPES, EFFECTS, HERO_STYLES, BACKGROUNDS, defaultConfig, newSection, templateStyle, uid } from './templates.js';
+import { TEMPLATES, SECTION_TYPES, EFFECTS, HERO_STYLES, HERO_ICON, BACKGROUNDS, defaultConfig, newSection, templateStyle, uid } from './templates.js';
 import { createWedding } from './backend.js';
 import { mountDashboard } from './dashboard.js';
 import { FONTS, fontsHref } from './fonts.js';
@@ -47,7 +47,7 @@ const kb = n => (n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.round(n / 1e3) + 
 function migrate(s) {
   const d = defaultConfig();
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
-  for (const k of ['couple', 'colors', 'fonts', 'scene', 'intro', 'music', 'publish']) s[k] = { ...d[k], ...s[k] };
+  for (const k of ['couple', 'colors', 'fonts', 'scene', 'intro', 'music', 'publish', 'heroLayout']) s[k] = { ...d[k], ...s[k] };
   s.effects = { ...Object.fromEntries(EFFECTS.map(e => [e.id, false])), ...s.effects };
   s.invites ||= [];
   s.admin ||= { key: '' };
@@ -57,10 +57,54 @@ function migrate(s) {
 
 // ---------- preview + save ----------
 let sendT, saveT;
+
+// ---------- undo / redo ----------
+// Snapshots are JSON with big data: URLs (photos, music) swapped for references, so history stays light.
+const blobs = new Map();
+const snap = () => JSON.stringify(state, function (k, v) {
+  if (k === 'src' && typeof v === 'string' && v.length > 2000) { const id = this.id || 'music'; blobs.set(id, v); return '@blob:' + id; }
+  return v;
+});
+const unsnap = j => JSON.parse(j, (k, v) => (typeof v === 'string' && v.startsWith('@blob:') ? blobs.get(v.slice(6)) : v));
+const past = [], future = [];
+let lastSnap = null, histT = null, restoring = false;
+function commitHistory() {
+  clearTimeout(histT);
+  histT = null;
+  const now = snap();
+  if (lastSnap !== null && now !== lastSnap) {
+    past.push(lastSnap);
+    if (past.length > 80) past.shift();
+    future.length = 0;
+  }
+  lastSnap = now;
+  updateUndoButtons();
+}
+function updateUndoButtons() {
+  $('#btnUndo').disabled = !past.length;
+  $('#btnRedo').disabled = !future.length;
+}
+function travel(from, to, label) {
+  if (histT) commitHistory();
+  if (!from.length) return;
+  to.push(lastSnap);
+  lastSnap = from.pop();
+  restoring = true;
+  state = migrate(unsnap(lastSnap));
+  renderPanel();
+  changed();
+  restoring = false;
+  updateUndoButtons();
+  toast(label, 1200);
+}
+const undo = () => travel(past, future, '↶ Undone');
+const redo = () => travel(future, past, '↷ Redone');
+
 function sendPreview() {
   frame.contentWindow?.postMessage({ type: 'config', config: state, invite: previewInvite }, location.origin);
 }
 function changed() {
+  if (!restoring) { clearTimeout(histT); histT = setTimeout(commitHistory, 450); }
   clearTimeout(sendT);
   sendT = setTimeout(sendPreview, 90);
   $('#saveState').textContent = 'Saving…';
@@ -78,8 +122,39 @@ function changed() {
   }, 500);
 }
 addEventListener('message', e => {
-  if (e.origin === location.origin && e.source === frame.contentWindow && e.data?.type === 'ready') sendPreview();
+  if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+  const m = e.data || {};
+  if (m.type === 'ready') sendPreview();
+  else if (m.type === 'sectionAction') sectionAction(m.id, m.action);
+  else if (m.type === 'heroAction') go({ details: 'details', layout: 'style', template: 'template' }[m.action] || 'details');
+  else if (m.type === 'editText') {
+    const sm = /^sec:([^:]+):(\w+)$/.exec(m.path);
+    if (sm) { const sec = state.sections.find(x => x.id === sm[1]); if (sec) sec.data[sm[2]] = m.value; }
+    else if (/^couple\.\w+$/.test(m.path)) setPath(state, m.path, m.value);
+    else return;
+    renderPanel(); changed();
+    toast('Text updated ✓', 1200);
+  }
 });
+
+function sectionAction(id, action) {
+  const i = state.sections.findIndex(s => s.id === id);
+  if (i < 0) return;
+  if (action === 'edit') {
+    openIdx = i;
+    go('elements');
+    setTimeout(() => panel.querySelector('.sec.open')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    return;
+  }
+  const a = { up: 'moveSection', down: 'moveSection', dup: 'duplicateSection', delete: 'removeSection' }[action];
+  if (action === 'hide') {
+    state.sections[i].enabled = false;
+    renderPanel(); changed();
+    toast('Section hidden — turn it back on in Elements (or press Ctrl+Z)', 3200);
+    return;
+  }
+  if (a) actions[a]({ i, d: action === 'up' ? -1 : 1 });
+}
 
 // ---------- form fields ----------
 function field(f, path, extra = '') {
@@ -97,6 +172,14 @@ const toggle = (path, label, sub = '') => `<label class="toggle"><input type="ch
 const colorField = (path, label) => {
   const v = getPath(state, path);
   return `<label class="color"><input type="color" value="${esc(v)}" data-bind="${path}"><span>${esc(label)}<code>${esc(v)}</code></span></label>`;
+};
+
+const SLIDER_FMT = {};
+const slider = (path, label, min, max, step, fmt) => {
+  const v = getPath(state, path) ?? 1;
+  SLIDER_FMT[path] = fmt;
+  return `<div class="field"><label>${esc(label)} <output data-out="${path}">${esc(fmt(v))}</output></label>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${esc(v)}" data-bind="${path}" data-num></div>`;
 };
 
 // ---------- tabs ----------
@@ -124,8 +207,8 @@ const views = {
     <label class="drop" data-drop><input type="file" accept="image/*" multiple data-upload="photos" hidden>
       <span class="drop-ico">⬆</span><strong>Click or drop photos here</strong><small>JPG, PNG or WEBP — add as many as you like</small></label>
     <div class="photo-grid">${state.photos.map((p, i) => `
-      <div class="photo">
-        <div class="thumb"><img src="${p.src}" alt=""><span class="num">${i + 1}</span>
+      <div class="photo" data-drop-photo data-i="${i}">
+        <div class="thumb" draggable="true" data-drag="photo" data-i="${i}" title="Drag to reorder"><img src="${p.src}" alt="" draggable="false"><span class="num">${i + 1}</span>
           <div class="photo-tools">
             <button title="Move left" data-action="movePhoto" data-i="${i}" data-d="-1">◀</button>
             <button title="Move right" data-action="movePhoto" data-i="${i}" data-d="1">▶</button>
@@ -150,7 +233,7 @@ const views = {
       <button class="tpl ${state.template === t.id ? 'on' : ''}" data-action="applyTemplate" data-id="${t.id}"
         style="--tb:${t.colors.bg};--tp:${t.colors.primary};--ta:${t.colors.accent};--tt:${t.colors.text}">
         <div class="tpl-prev">
-          <span class="tpl-orb"></span>
+          <span class="tpl-ico">${HERO_ICON[t.scene.hero] || '✨'}</span>
           <span class="tpl-names" style="font-family:'${t.fonts.display}'">${esc(a)} &amp; ${esc(b)}</span>
           <span class="tpl-sw"><i style="background:var(--tp)"></i><i style="background:var(--ta)"></i><i style="background:var(--tt)"></i></span>
         </div>
@@ -173,6 +256,14 @@ const views = {
     ${field({ label: 'Hero 3D object', type: 'select', options: HERO_STYLES }, 'scene.hero')}
     ${field({ label: 'Background', type: 'select', options: BACKGROUNDS }, 'scene.background')}
     ${toggle('scene.motion', 'Mouse / tilt parallax', 'The camera follows the mouse or phone tilt')}
+    <h3>Move & resize <button class="btn small link" data-action="resetLayout">Reset</button></h3>
+    <p class="hint">Position the names and the 3D object at the top of the page.</p>
+    ${field({ label: 'Names position', type: 'select', options: [['bottom', 'Bottom'], ['center', 'Middle'], ['top', 'Top']] }, 'heroLayout.textPos')}
+    ${slider('heroLayout.nameSize', 'Names size', 0.5, 1.6, 0.05, v => Math.round(v * 100) + '%')}
+    ${slider('heroLayout.objScale', '3D object size', 0.4, 2, 0.05, v => Math.round(v * 100) + '%')}
+    ${slider('heroLayout.objX', '3D object ← left · right →', -4, 4, 0.1, v => (v > 0 ? '+' : '') + Number(v).toFixed(1))}
+    ${slider('heroLayout.objY', '3D object ↓ down · up ↑', -4, 3, 0.1, v => (v > 0 ? '+' : '') + Number(v).toFixed(1))}
+    ${slider('heroLayout.spin', 'Animation speed', 0, 3, 0.1, v => (v == 0 ? 'paused' : Number(v).toFixed(1) + '×'))}
   `,
 
   effects: () => `
@@ -189,18 +280,20 @@ const views = {
 
   elements: () => `
     <h2>Page elements</h2>
-    <p class="hint">Switch sections on or off, reorder them and edit their content. Click a section to edit it.</p>
+    <p class="hint">Drag ⠿ to reorder, switch sections on or off, and click one to edit it. Tip: hover a section in the preview for quick tools, and double-click any title there to edit it in place.</p>
     <div class="sec-list">${state.sections.map((s, i) => {
       const T = SECTION_TYPES[s.type];
       if (!T) return '';
-      return `<div class="sec ${openIdx === i ? 'open' : ''} ${s.enabled === false ? 'off' : ''}">
+      return `<div class="sec ${openIdx === i ? 'open' : ''} ${s.enabled === false ? 'off' : ''}" data-drop-sec data-i="${i}">
         <div class="sec-head">
+          <span class="grip" draggable="true" data-drag="sec" data-i="${i}" title="Drag to move">⠿</span>
           <button class="sec-name" data-action="toggleSection" data-i="${i}"><span class="ico">${T.icon}</span>
             <span><strong>${esc(s.data.title || T.label)}</strong><small>${esc(T.label)}</small></span></button>
           <label class="switch" title="Show on site"><input type="checkbox" data-bind="sections.${i}.enabled" data-rerender ${s.enabled !== false ? 'checked' : ''}><i></i></label>
           <div class="sec-tools">
             <button title="Move up" data-action="moveSection" data-i="${i}" data-d="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
             <button title="Move down" data-action="moveSection" data-i="${i}" data-d="1" ${i === state.sections.length - 1 ? 'disabled' : ''}>↓</button>
+            <button title="Duplicate" data-action="duplicateSection" data-i="${i}">⧉</button>
             <button title="Delete" data-action="removeSection" data-i="${i}">🗑</button>
           </div>
         </div>
@@ -326,6 +419,18 @@ function sectionForm(s, i) {
       <button class="btn small block" data-action="addItem" data-i="${i}">+ Add ${esc(T.list.one)}</button></div>`;
   }
   if (T.note) h += `<p class="hint">${esc(T.note)}</p>`;
+  const sp = k => `sections.${i}.style.${k}`;
+  const pick = (k, label, opts, def) => {
+    const v = s.style?.[k] || def;
+    return `<div class="field"><label>${label}</label><select data-bind="${sp(k)}">${opts.map(([val, l]) => `<option value="${val}" ${val === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
+  };
+  h += `<div class="sstyle"><div class="list-head">Section style</div><div class="grid2">
+    ${pick('bg', 'Background', [['none', 'None'], ['glass', 'Glass panel'], ['band', 'Colour band']], 'none')}
+    ${pick('anim', 'Entrance', [['rise', 'Rise up'], ['zoom', 'Zoom in'], ['flip', '3D flip'], ['slide', 'Slide in'], ['none', 'None']], 'rise')}
+    ${pick('width', 'Width', [['narrow', 'Narrow'], ['normal', 'Normal'], ['wide', 'Wide']], 'normal')}
+    ${pick('spacing', 'Spacing', [['compact', 'Compact'], ['normal', 'Normal'], ['roomy', 'Roomy']], 'normal')}
+    ${pick('align', 'Title align', [['center', 'Centre'], ['left', 'Left']], 'center')}
+  </div></div>`;
   return h;
 }
 
@@ -394,6 +499,7 @@ panel.addEventListener('input', e => {
   setPath(state, el.dataset.bind, v);
   if (el.type === 'color') el.parentElement.querySelector('code').textContent = v;
   if (el.dataset.bind === 'density') $('#densOut').textContent = Math.round(v * 100) + '%';
+  if (SLIDER_FMT[el.dataset.bind]) panel.querySelector(`[data-out="${el.dataset.bind}"]`).textContent = SLIDER_FMT[el.dataset.bind](v);
   if (el.dataset.bind === 'publish.repo') $('.url-preview b').textContent = slugify(v || `${state.couple.partner1}-weds-${state.couple.partner2}`);
   if (/^(colors|fonts|scene|effects)\./.test(el.dataset.bind)) state.template = 'custom';
   changed();
@@ -420,14 +526,53 @@ panel.addEventListener('change', async e => {
   el.value = '';
 });
 
+// drag & drop: reorder sections/photos, or drop image files onto the upload zone
+let drag = null;
+const clearMarks = () => panel.querySelectorAll('.drop-before, .drop-after, .dragging').forEach(x => x.classList.remove('drop-before', 'drop-after', 'dragging'));
+panel.addEventListener('dragstart', e => {
+  const g = e.target.closest?.('[data-drag]');
+  if (!g) return;
+  drag = { kind: g.dataset.drag, from: +g.dataset.i, to: null };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', drag.kind);
+  g.closest(`[data-drop-${drag.kind}]`)?.classList.add('dragging');
+});
+panel.addEventListener('dragend', () => { drag = null; clearMarks(); });
 panel.addEventListener('dragover', e => {
+  if (drag) {
+    const t = e.target.closest(`[data-drop-${drag.kind}]`);
+    if (!t) return;
+    e.preventDefault();
+    panel.querySelectorAll('.drop-before, .drop-after').forEach(x => x.classList.remove('drop-before', 'drop-after'));
+    const r = t.getBoundingClientRect();
+    const after = drag.kind === 'photo' ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    t.classList.add(after ? 'drop-after' : 'drop-before');
+    drag.to = +t.dataset.i + (after ? 1 : 0);
+    return;
+  }
   const d = e.target.closest('[data-drop]');
   if (!d) return;
   e.preventDefault();
   d.classList.add('over');
 });
-panel.addEventListener('dragleave', e => e.target.closest('[data-drop]')?.classList.remove('over'));
+panel.addEventListener('dragleave', e => e.target.closest?.('[data-drop]')?.classList.remove('over'));
 panel.addEventListener('drop', e => {
+  if (drag) {
+    e.preventDefault();
+    const { kind, from, to } = drag;
+    drag = null;
+    clearMarks();
+    if (to == null) return;
+    const arr = kind === 'sec' ? state.sections : state.photos;
+    const openId = state.sections[openIdx]?.id;
+    const dest = to > from ? to - 1 : to;
+    if (dest === from) return;
+    const [x] = arr.splice(from, 1);
+    arr.splice(dest, 0, x);
+    if (kind === 'sec') openIdx = state.sections.findIndex(sec => sec.id === openId);
+    renderPanel(); changed();
+    return;
+  }
   const d = e.target.closest('[data-drop]');
   if (!d) return;
   e.preventDefault();
@@ -493,6 +638,20 @@ const actions = {
   moveItem({ i, j, d }) {
     const s = state.sections[i];
     swap(s.data[SECTION_TYPES[s.type].list.k], j, j + d);
+    renderPanel(); changed();
+  },
+  duplicateSection({ i }) {
+    const c = structuredClone(state.sections[i]);
+    c.id = uid();
+    if (c.type === 'events') (c.data.items || []).forEach(it => (it.id = uid()));
+    if (c.data.title) c.data.title += ' (copy)';
+    state.sections.splice(i + 1, 0, c);
+    openIdx = i + 1;
+    renderPanel(); changed();
+    toast('Section duplicated');
+  },
+  resetLayout() {
+    state.heroLayout = { ...defaultConfig().heroLayout };
     renderPanel(); changed();
   },
   async activate() {
@@ -659,6 +818,16 @@ async function doPublish() {
 
 // ---------- top bar ----------
 $('#btnPublish').addEventListener('click', () => go('publish'));
+$('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
+addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const typing = e.target.closest?.('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]');
+  if (typing) return; // let the field use its own undo
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
+});
 $('#btnIntro').addEventListener('click', () => frame.contentWindow?.postMessage({ type: 'replayIntro' }, location.origin));
 $('#btnOpen').addEventListener('click', async () => { await store.set('project', state); window.open('site.html?draft=1', '_blank'); });
 $('#device').addEventListener('click', e => {
@@ -680,6 +849,8 @@ $('#device').addEventListener('click', e => {
   document.head.appendChild(l);
   renderRail();
   renderPanel();
+  lastSnap = snap();
+  updateUndoButtons();
   $('#saveState').textContent = '✓ Saved on this device';
   $('#saveState').classList.add('ok');
   sendPreview();
